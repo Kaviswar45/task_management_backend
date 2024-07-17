@@ -9,7 +9,7 @@ const session=require('express-session')
 require('dotenv').config();
 
 const app = express();
-const PORT = 3000;
+const PORT = 3000|| null;
 
 const pool = new Pool({
     user: 'postgres.zhbravqsvtqypxmykvdf',
@@ -377,12 +377,15 @@ app.delete('/api/tasks/deleteTask', [validateToken, async (req, res) => {
 
   
 
-app.get('/protected', validateToken, (req, res) => {
+app.get('/protected',  (req, res) => {
     res.json({
         status: 'success',
         message: 'This is a protected route',
     });
 });
+
+
+
 
 app.listen(PORT, () => {
     console.log(`Server running on http://localhost:${PORT}`);
