@@ -239,21 +239,23 @@ app.post('/api/addprofile', [validateToken, async (req, res) => {
 
 
 
+// Route to handle password reset
 app.post('/reset-password', async (req, res) => {
-    const { username, newPassword } = req.body;
+    const { username, email, newPassword } = req.body;
+
+    // Find user by username and email
+    const user = users.find(u => u.username === username && u.email === email);
+
+    if (!user) {
+        return res.status(400).json({
+            status: 'error',
+            message: 'Username and/or email not found',
+        });
+    }
 
     try {
         const hashedPassword = await bcrypt.hash(newPassword, 10);
-        const query = 'UPDATE Users SET password = $1 WHERE username = $2 RETURNING *';
-        const values = [hashedPassword, username];
-        const result = await pool.query(query, values);
-
-        if (result.rows.length === 0) {
-            return res.status(400).json({
-                status: 'error',
-                message: 'Username not found',
-            });
-        }
+        user.password = hashedPassword; // Update the user's password
 
         res.status(200).json({
             status: 'success',
@@ -267,6 +269,7 @@ app.post('/reset-password', async (req, res) => {
         });
     }
 });
+
 
 
 
