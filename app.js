@@ -131,7 +131,6 @@ app.post('/api/register', async (req, res) => {
         res.status(201).json({
             status: 'success',
             message: 'Registration successful',
-            redirectTo: '../html/login.html'
         });
     } catch (err) {
         console.error(err);
