@@ -305,6 +305,22 @@ app.post('/api/userProfile',[validateToken, async (req, res) => {
     }
 }]);
 
+// Update user profile endpoint
+app.post('/api/updateUserProfile', validateToken, async (req, res) => {
+    const { first_name, last_name, bio, dob } = req.body;
+    const username = req.user.username; // Assuming the username is stored in the token
+
+    try {
+        await pool.query(
+            'UPDATE UserProfile SET first_name = $1, last_name = $2, bio = $3, dob = $4 WHERE username = $5',
+            [first_name, last_name, bio, dob, username]
+        );
+        res.status(200).send('Profile updated successfully');
+    } catch (error) {
+        console.error('Error updating user profile:', error);
+        res.status(500).send('Server error');
+    }
+});
 
 // Endpoint to handle task creation
 app.post('/api/tasks',[validateToken, async (req, res) => {
