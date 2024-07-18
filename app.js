@@ -4,12 +4,12 @@ const { Pool } = require('pg');
 const cors = require('cors');
 const bcrypt = require('bcrypt');
 const cookieParser = require('cookie-parser');
-const jwt=require('jsonwebtoken')
-const session=require('express-session')
+const jwt = require('jsonwebtoken');
+const session = require('express-session');
 require('dotenv').config();
 
 const app = express();
-const PORT = 3000|| null;
+const PORT = 3000 || null;
 
 const pool = new Pool({
     user: 'postgres.zhbravqsvtqypxmykvdf',
@@ -18,8 +18,6 @@ const pool = new Pool({
     password: 'Kaviswar@123',
     port: 6543
 });
-
-
 
 app.use(cors());
 app.use(bodyParser.urlencoded({ extended: false }));
@@ -31,13 +29,11 @@ app.use(session({
     secret: secretKey,
     resave: false,
     saveUninitialized: true
-}))
+}));
 
 const createTokens = (req, res, user) => {
     const username = user.username;
-    const accessToken = jwt.sign({
-        username: username
-    }, secretKey, { expiresIn: '1h' });
+    const accessToken = jwt.sign({ username: username }, secretKey, { expiresIn: '1h' });
     req.session.jwtToken = accessToken;
     return accessToken;
 };
@@ -65,49 +61,36 @@ const validateToken = (req, res, next) => {
     }
 };
 
-//decoding the token
-app.post('/api/decodeToken',[validateToken, async (req, res) => {
+app.post('/api/decodeToken', [validateToken, async (req, res) => {
     console.log('api decode requested');
     try {
-        // Extract the token from the request body
         const { token } = req.body;
-    
         console.log(token);
-
-        // Verify and decode the token
         const decodedToken = jwt.verify(token, secretKey);
-        
-        // Extract username from decoded token
         const { username } = decodedToken;
 
         try {
-            // Query the database to retrieve user data based on username
             const query = 'SELECT username FROM users WHERE username = $1';
             const values = [username];
             const result = await pool.query(query, values);
 
-            // Check if user exists in the database
             if (result.rows.length === 0) {
                 return res.status(404).json({ error: 'User not found' });
             }
 
-            // Get the user data from the query results
             const userData = result.rows[0];
             console.log('decoded token');
 
-            // Send user data back to the client
             res.status(200).json(userData);
         } catch (error) {
             console.error('Error querying database:', error.message);
             res.status(500).json({ error: 'Internal server error' });
         }
     } catch (error) {
-        // Handle any errors, such as token validation failure
         console.error('Error decoding token:', error.message);
         res.status(400).json({ error: 'Failed to decode token' });
     }
 }]);
-
 
 app.post('/api/register', async (req, res) => {
     const { username, email, password } = req.body;
@@ -124,7 +107,7 @@ app.post('/api/register', async (req, res) => {
         }
 
         const hashedPassword = await bcrypt.hash(password, 10);
-        const query = 'INSERT INTO Users (username, password, email) VALUES ($1, $2, $3) RETURNING *';
+        const query = 'INSERT INTO Users (username, password, email, team_id, current_projects, past_projects) VALUES ($1, $2, $3, NULL, 0, 0) RETURNING *';
         const values = [username, hashedPassword, email];
         const result = await pool.query(query, values);
 
@@ -157,9 +140,9 @@ app.post('/api/login', async (req, res) => {
         }
 
         const user = result.rows[0];
-        const isPasswordValid = await bcrypt.compare(password, user.password);
+        const passwordMatch = await bcrypt.compare(password, user.password);
 
-        if (!isPasswordValid) {
+        if (!passwordMatch) {
             return res.status(400).json({
                 status: 'error',
                 message: 'Invalid username or password',
@@ -167,17 +150,10 @@ app.post('/api/login', async (req, res) => {
         }
 
         const token = createTokens(req, res, user);
-
-        // Check if the user exists in the UserProfile table
-        const profileQuery = 'SELECT * FROM UserProfile WHERE username = $1';
-        const profileResult = await pool.query(profileQuery, values);
-
-        const profileExists = profileResult.rows.length > 0 ? 1 : 0;
-
-        res.json({
-            isvalid: true,
-            token,
-            profileExists
+        res.status(200).json({
+            status: 'success',
+            message: 'Login successful',
+            token: token,
         });
     } catch (err) {
         console.error(err);
@@ -188,82 +164,25 @@ app.post('/api/login', async (req, res) => {
     }
 });
 
-
-
-app.post('/api/addprofile', [validateToken, async (req, res) => {
-    const { username, first_name, last_name, date_of_birth, bio } = req.body;
-    console.log(req.body);
-
-    if (!username || !first_name || !last_name || !date_of_birth || !bio) {
-        return res.status(400).json({
-            status: 'error',
-            message: 'Missing required fields',
-        });
-    }
-
-    try {
-        console.log("1");
-        const query = `
-            INSERT INTO UserProfile (username, first_name, last_name, dob, bio)
-            VALUES ($1, $2, $3, $4, $5)
-            ON CONFLICT (username) DO UPDATE
-            SET first_name = $2, last_name = $3, dob = $4, bio = $5
-            RETURNING *;
-        `;
-        const values = [username, first_name, last_name, date_of_birth, bio];
-        const result = await pool.query(query, values);
-        console.log("2");
-
-        if (result.rows.length === 0) {
-            return res.status(400).json({
-                status: 'error',
-                message: 'Failed to update profile',
-            });
-        }
-
-        console.log("3");
-
-        res.status(200).json({
-            status: 'success',
-            message: 'Profile updated successfully',
-            profile: result.rows[0],
-        });
-    } catch (err) {
-        console.error(err);
-        res.status(500).json({
-            status: 'error',
-            message: 'Internal Server Error',
-        });
-    }
-}]);
-
-
-
 app.post('/reset-password', async (req, res) => {
     const { username, email, newPassword } = req.body;
 
     try {
-        const userQuery = 'SELECT * FROM Users WHERE username = $1 AND email = $2';
-        const userResult = await pool.query(userQuery, [username, email]);
+        const query = 'SELECT * FROM Users WHERE username = $1 AND email = $2';
+        const values = [username, email];
+        const result = await pool.query(query, values);
 
-        if (userResult.rows.length === 0) {
+        if (result.rows.length === 0) {
             return res.status(400).json({
                 status: 'error',
-                message: 'Username and email do not match',
+                message: 'Invalid username or email',
             });
         }
 
         const hashedPassword = await bcrypt.hash(newPassword, 10);
-        const updateQuery = 'UPDATE Users SET password = $1 WHERE username = $2 AND email = $3 RETURNING *';
-        const values = [hashedPassword, username, email];
-        const updateResult = await pool.query(updateQuery, values);
-
-        if (updateResult.rows.length === 0) {
-            return res.status(400).json({
-                status: 'error',
-                message: 'Password reset failed',
-            });
-        }
+        const updateQuery = 'UPDATE Users SET password = $1 WHERE username = $2';
+        const updateValues = [hashedPassword, username];
+        await pool.query(updateQuery, updateValues);
 
         res.status(200).json({
             status: 'success',
@@ -278,18 +197,15 @@ app.post('/reset-password', async (req, res) => {
     }
 });
 
-
-
-
-
-// Get user profile endpoint
-app.post('/api/userProfile',[validateToken, async (req, res) => {
+app.post('/api/userProfile', [validateToken, async (req, res) => {
     const username = req.body.username;
     try {
         const userResult = await pool.query('SELECT * FROM UserProfile WHERE username = $1', [username]);
         const taskResult = await pool.query('SELECT status, COUNT(*) as count FROM Tasks WHERE username = $1 GROUP BY status', [username]);
+        const userTableResult = await pool.query('SELECT current_projects, past_projects FROM users WHERE username = $1', [username]);
 
         const user = userResult.rows[0];
+        const userTable = userTableResult.rows[0];
         const tasks = {
             pending: 0,
             in_progress: 0,
@@ -309,6 +225,8 @@ app.post('/api/userProfile',[validateToken, async (req, res) => {
             bio: user.bio,
             dob: user.dob,
             tasks: tasks,
+            current_projects: userTable.current_projects,
+            past_projects: userTable.past_projects
         });
     } catch (error) {
         console.error('Error fetching user profile:', error);
@@ -316,103 +234,96 @@ app.post('/api/userProfile',[validateToken, async (req, res) => {
     }
 }]);
 
-// Update user profile endpoint
-app.post('/api/updateUserProfile', validateToken, async (req, res) => {
-    const { first_name, last_name, bio, dob } = req.body;
-    const username = req.user.username; // Assuming the username is stored in the token
+app.post('/api/createTeam', [validateToken, async (req, res) => {
+    const { team_name, team_leader } = req.body;
 
     try {
-        await pool.query(
-            'UPDATE UserProfile SET first_name = $1, last_name = $2, bio = $3, dob = $4 WHERE username = $5',
-            [first_name, last_name, bio, dob, username]
-        );
-        res.status(200).send('Profile updated successfully');
-    } catch (error) {
-        console.error('Error updating user profile:', error);
-        res.status(500).send('Server error');
-    }
-});
+        const query = 'INSERT INTO teams (team_name, team_leader) VALUES ($1, $2) RETURNING *';
+        const values = [team_name, team_leader];
+        const result = await pool.query(query, values);
 
-// Endpoint to handle task creation
-app.post('/api/tasks',[validateToken, async (req, res) => {
-    const { username, description, status, priority, category, due_date, due_time } = req.body;
-  
-    try {
-      const client = await pool.connect();
-      const result = await client.query(
-        'INSERT INTO tasks (username, description, status, priority, category, due_date, due_time) VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *',
-        [username, description, status, priority, category, due_date, due_time]
-      );
-      client.release();
-      
-      res.status(201).json(result.rows[0]);
-    } catch (error) {
-      console.error('Error executing query', error);
-      res.status(500).json({ message: 'Failed to create task' });
-    }
-  }]);
-
- // Fetch tasks endpoint
-app.post('/api/tasks/view', [validateToken, async (req, res) => {
-    const { username } = req.body;
-    console.log(`Fetching tasks for username: ${username}`);
-    
-    try {
-        const result = await pool.query('SELECT * FROM tasks WHERE username = $1', [username]);
-        console.log(`Fetched tasks:`, result.rows);
-        res.json(result.rows);
-    } catch (error) {
-        console.error('Error fetching tasks:', error.message);
-        res.status(500).json({ message: 'Failed to fetch tasks', error: error.message });
+        res.status(201).json({
+            status: 'success',
+            message: 'Team created successfully',
+            team: result.rows[0],
+        });
+    } catch (err) {
+        console.error(err);
+        res.status(500).json({
+            status: 'error',
+            message: 'Internal Server Error',
+        });
     }
 }]);
 
-// Update task endpoint
-app.put('/api/tasks/update', [validateToken, async (req, res) => {
-    const { taskId, username, description, status, priority, category, due_date, due_time } = req.body;
-    try {
-        const result = await pool.query(
-            'UPDATE tasks SET description = $1, status = $2, priority = $3, category = $4, due_date = $5, due_time = $6 WHERE task_id = $7 AND username = $8',
-            [description, status, priority, category, new Date(due_date), due_time, taskId, username]
-        );
+app.post('/api/sendJoinRequest', [validateToken, async (req, res) => {
+    const { username, team_id } = req.body;
 
-        if (result.rowCount > 0) {
-            res.json({ message: 'Task updated successfully' });
-        } else {
-            res.status(404).json({ message: 'Task not found' });
-        }
-    } catch (error) {
-        res.status(500).json({ message: 'Failed to update task', error: error.message });
+    try {
+        const query = 'INSERT INTO requests (username, team_id, status) VALUES ($1, $2, $3) RETURNING *';
+        const values = [username, team_id, 'pending'];
+        const result = await pool.query(query, values);
+
+        res.status(201).json({
+            status: 'success',
+            message: 'Join request sent successfully',
+            request: result.rows[0],
+        });
+    } catch (err) {
+        console.error(err);
+        res.status(500).json({
+            status: 'error',
+            message: 'Internal Server Error',
+        });
     }
 }]);
 
-// Delete task endpoint
-app.delete('/api/tasks/deleteTask', [validateToken, async (req, res) => {
-    const { taskId, username } = req.body;
+app.post('/api/acceptJoinRequest', [validateToken, async (req, res) => {
+    const { request_id } = req.body;
+
     try {
-        const result = await pool.query('DELETE FROM tasks WHERE task_id = $1 AND username = $2', [taskId, username]);
-        if (result.rowCount > 0) {
-            res.json({ message: 'Task deleted successfully' });
-        } else {
-            res.status(404).json({ message: 'Task not found' });
-        }
-    } catch (error) {
-        res.status(500).json({ message: 'Failed to delete task', error: error.message });
+        const query = 'UPDATE requests SET status = $1 WHERE request_id = $2 RETURNING *';
+        const values = ['accepted', request_id];
+        const result = await pool.query(query, values);
+
+        const { username, team_id } = result.rows[0];
+        await pool.query('UPDATE users SET team_id = $1 WHERE username = $2', [team_id, username]);
+
+        res.status(200).json({
+            status: 'success',
+            message: 'Join request accepted successfully',
+        });
+    } catch (err) {
+        console.error(err);
+        res.status(500).json({
+            status: 'error',
+            message: 'Internal Server Error',
+        });
     }
 }]);
 
-  
+app.post('/api/assignTask', [validateToken, async (req, res) => {
+    const { team_id, assigned_to, description, status, priority, category, due_date, due_time } = req.body;
 
-app.get('/protected',  (req, res) => {
-    res.json({
-        status: 'success',
-        message: 'This is a protected route',
-    });
-});
+    try {
+        const query = 'INSERT INTO tasks (team_id, assigned_to, description, status, priority, category, due_date, due_time) VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING *';
+        const values = [team_id, assigned_to, description, status, priority, category, due_date, due_time];
+        const result = await pool.query(query, values);
 
-
-
+        res.status(201).json({
+            status: 'success',
+            message: 'Task assigned successfully',
+            task: result.rows[0],
+        });
+    } catch (err) {
+        console.error(err);
+        res.status(500).json({
+            status: 'error',
+            message: 'Internal Server Error',
+        });
+    }
+}]);
 
 app.listen(PORT, () => {
-    console.log(`Server running on http://localhost:${PORT}`);
+    console.log(`Server is running on port ${PORT}`);
 });
