@@ -96,7 +96,7 @@ app.post('/api/register', async (req, res) => {
     const { username, email, password } = req.body;
 
     try {
-        const checkQuery = 'SELECT * FROM Users WHERE username = $1';
+        const checkQuery = 'SELECT * FROM users WHERE username = $1';
         const checkResult = await pool.query(checkQuery, [username]);
 
         if (checkResult.rows.length > 0) {
@@ -107,7 +107,7 @@ app.post('/api/register', async (req, res) => {
         }
 
         const hashedPassword = await bcrypt.hash(password, 10);
-        const query = 'INSERT INTO Users (username, password, email, team_id, current_projects, past_projects) VALUES ($1, $2, $3, NULL, 0, 0) RETURNING *';
+        const query = 'INSERT INTO users (username, password, email, team_id, current_projects, past_projects) VALUES ($1, $2, $3, NULL, 0, 0) RETURNING *';
         const values = [username, hashedPassword, email];
         const result = await pool.query(query, values);
 
@@ -128,7 +128,7 @@ app.post('/api/login', async (req, res) => {
     const { username, password } = req.body;
 
     try {
-        const query = 'SELECT * FROM Users WHERE username = $1';
+        const query = 'SELECT * FROM users WHERE username = $1';
         const values = [username];
         const result = await pool.query(query, values);
 
@@ -168,7 +168,7 @@ app.post('/reset-password', async (req, res) => {
     const { username, email, newPassword } = req.body;
 
     try {
-        const query = 'SELECT * FROM Users WHERE username = $1 AND email = $2';
+        const query = 'SELECT * FROM users WHERE username = $1 AND email = $2';
         const values = [username, email];
         const result = await pool.query(query, values);
 
@@ -180,7 +180,7 @@ app.post('/reset-password', async (req, res) => {
         }
 
         const hashedPassword = await bcrypt.hash(newPassword, 10);
-        const updateQuery = 'UPDATE Users SET password = $1 WHERE username = $2';
+        const updateQuery = 'UPDATE users SET password = $1 WHERE username = $2';
         const updateValues = [hashedPassword, username];
         await pool.query(updateQuery, updateValues);
 
