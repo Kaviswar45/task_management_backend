@@ -420,14 +420,30 @@ app.post('/api/getTasks', validateToken, async (req, res) => {
 });
 
 app.get('/api/getProjects', validateToken, async (req, res) => {
+    const username = req.user.username;
+
     try {
-        const { rows } = await pool.query('SELECT project_id, project_name FROM Projects');
+        const query = `
+            SELECT project_id, project_name 
+            FROM Projects 
+            WHERE project_leader = $1 
+            OR members::jsonb @> $2::jsonb
+        `;
+        const values = [username, JSON.stringify([username])];
+
+        const { rows } = await pool.query(query, values);
+
+        if (rows.length === 0) {
+            return res.status(404).json({ error: 'No projects found for the user' });
+        }
+
         res.json(rows);
     } catch (err) {
         console.error('Error fetching projects:', err);
         res.sendStatus(500);
     }
 });
+
 
 app.post('/api/updateTask', validateToken, async (req, res) => {
     const { task_id, task_name, status, priority, project_id } = req.body;
