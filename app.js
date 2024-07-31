@@ -345,21 +345,21 @@ app.post('/api/projectMembers', validateToken, async (req, res) => {
     }
 
     try {
-        const query = 'SELECT members FROM projects WHERE project_id = $1';
-        const values = [project_id];
-        const result = await pool.query(query, values);
+        const query = 'SELECT members FROM Projects WHERE project_id = $1';
+        const result = await pool.query(query, [project_id]);
 
         if (result.rows.length === 0) {
             return res.status(404).json({ error: 'No members found for this project' });
         }
 
         const members = result.rows[0].members;
-        res.status(200).json(members);
+        res.status(200).json({ members });
     } catch (error) {
         console.error('Error fetching project members:', error.message);
         res.status(500).json({ error: 'Internal Server Error' });
     }
 });
+
 
 
 app.post('/api/createTask', validateToken, async (req, res) => {
