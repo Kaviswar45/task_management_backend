@@ -314,23 +314,53 @@ app.post('/api/requests/reject', validateToken, async (req, res) => {
     }
 });
 
+app.post('/api/userProjects', validateToken, async (req, res) => {
+    const { username } = req.body;
 
-app.get('/api/userProjects', validateToken, async (req, res) => {
-    const username = req.user.username;
+    if (!username) {
+        return res.status(400).json({ error: 'Username is required' });
+    }
+
     try {
-        const query = `
-            SELECT project_id, project_name 
-            FROM Projects 
-            WHERE project_leader = $1 OR members @> $2::jsonb
-        `;
+        const query = 'SELECT * FROM projects WHERE project_leader = $1 OR members::jsonb @> $2::jsonb';
         const values = [username, JSON.stringify([username])];
         const result = await pool.query(query, values);
-        res.json(result.rows);
-    } catch (err) {
-        console.error('Error fetching user projects:', err);
-        res.status(500).json({ message: 'Internal server error' });
+
+        if (result.rows.length === 0) {
+            return res.status(404).json({ error: 'No projects found for the user' });
+        }
+
+        res.status(200).json(result.rows);
+    } catch (error) {
+        console.error('Error fetching user projects:', error.message);
+        res.status(500).json({ error: 'Internal Server Error' });
     }
 });
+
+app.post('/api/projectMembers', validateToken, async (req, res) => {
+    const { project_id } = req.body;
+
+    if (!project_id) {
+        return res.status(400).json({ error: 'Project ID is required' });
+    }
+
+    try {
+        const query = 'SELECT members FROM projects WHERE project_id = $1';
+        const values = [project_id];
+        const result = await pool.query(query, values);
+
+        if (result.rows.length === 0) {
+            return res.status(404).json({ error: 'No members found for this project' });
+        }
+
+        const members = result.rows[0].members;
+        res.status(200).json(members);
+    } catch (error) {
+        console.error('Error fetching project members:', error.message);
+        res.status(500).json({ error: 'Internal Server Error' });
+    }
+});
+
 
 app.post('/api/createTask', validateToken, async (req, res) => {
     const { project_id, task_name, assigned_to, status, due_date, category, priority } = req.body;
