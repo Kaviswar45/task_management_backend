@@ -314,48 +314,23 @@ app.post('/api/requests/reject', validateToken, async (req, res) => {
     }
 });
 
-app.post('/api/userProjects', validateToken, async (req, res) => {
-    const { username } = req.body;
 
-    if (!username) {
-        return res.status(400).json({ error: 'Username is required' });
-    }
-
+app.get('/api/userProjects', validateToken, async (req, res) => {
+    const username = req.user.username;
     try {
-        const query = 'SELECT * FROM projects WHERE project_leader = $1 OR members::jsonb @> $2::jsonb';
+        const query = `
+            SELECT project_id, project_name 
+            FROM Projects 
+            WHERE project_leader = $1 OR members @> $2::jsonb
+        `;
         const values = [username, JSON.stringify([username])];
         const result = await pool.query(query, values);
-
-        if (result.rows.length === 0) {
-            return res.status(404).json({ error: 'No projects found for the user' });
-        }
-
-        res.status(200).json(result.rows);
-    } catch (error) {
-        console.error('Error fetching user projects:', error.message);
-        res.status(500).json({ error: 'Internal Server Error' });
+        res.json(result.rows);
+    } catch (err) {
+        console.error('Error fetching user projects:', err);
+        res.status(500).json({ message: 'Internal server error' });
     }
 });
-
-app.post('/api/projectMembers', validateToken, async (req, res) => {
-    const { project_name } = req.body;
-    try {
-        const projectQuery = 'SELECT members FROM Projects WHERE project_name = $1';
-        const projectResult = await pool.query(projectQuery, [project_name]);
-
-        if (projectResult.rows.length > 0) {
-            const members = projectResult.rows[0].members;
-            res.json(members);
-        } else {
-            res.status(404).json({ message: 'Project not found' });
-        }
-    } catch (error) {
-        console.error('Error fetching project members:', error);
-        res.status(500).json({ message: 'Internal Server Error' });
-    }
-});
-
-
 
 app.post('/api/createTask', validateToken, async (req, res) => {
     const { project_id, task_name, assigned_to, status, due_date, category, priority } = req.body;
@@ -415,30 +390,14 @@ app.post('/api/getTasks', validateToken, async (req, res) => {
 });
 
 app.get('/api/getProjects', validateToken, async (req, res) => {
-    const username = req.user.username;
-
     try {
-        const query = `
-            SELECT project_id, project_name 
-            FROM Projects 
-            WHERE project_leader = $1 
-            OR members::jsonb @> $2::jsonb
-        `;
-        const values = [username, JSON.stringify([username])];
-
-        const { rows } = await pool.query(query, values);
-
-        if (rows.length === 0) {
-            return res.status(404).json({ error: 'No projects found for the user' });
-        }
-
+        const { rows } = await pool.query('SELECT project_id, project_name FROM Projects');
         res.json(rows);
     } catch (err) {
         console.error('Error fetching projects:', err);
         res.sendStatus(500);
     }
 });
-
 
 app.post('/api/updateTask', validateToken, async (req, res) => {
     const { task_id, task_name, status, priority, project_id } = req.body;
