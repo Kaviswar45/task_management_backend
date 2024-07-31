@@ -338,25 +338,20 @@ app.post('/api/userProjects', validateToken, async (req, res) => {
 });
 
 app.post('/api/projectMembers', validateToken, async (req, res) => {
-    const { project_id } = req.body;
-
-    if (!project_id) {
-        return res.status(400).json({ error: 'Project ID is required' });
-    }
-
+    const { project_name } = req.body;
     try {
-        const query = 'SELECT members FROM Projects WHERE project_id = $1';
-        const result = await pool.query(query, [project_id]);
+        const projectQuery = 'SELECT members FROM Projects WHERE project_name = $1';
+        const projectResult = await pool.query(projectQuery, [project_name]);
 
-        if (result.rows.length === 0) {
-            return res.status(404).json({ error: 'No members found for this project' });
+        if (projectResult.rows.length > 0) {
+            const members = projectResult.rows[0].members;
+            res.json(members);
+        } else {
+            res.status(404).json({ message: 'Project not found' });
         }
-
-        const members = result.rows[0].members;
-        res.status(200).json({ members });
     } catch (error) {
-        console.error('Error fetching project members:', error.message);
-        res.status(500).json({ error: 'Internal Server Error' });
+        console.error('Error fetching project members:', error);
+        res.status(500).json({ message: 'Internal Server Error' });
     }
 });
 
