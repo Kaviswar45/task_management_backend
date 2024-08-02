@@ -222,6 +222,7 @@ app.get('/api/users', validateToken, async (req, res) => {
     }
 });
 
+
 app.post('/api/projects', validateToken, async (req, res) => {
     const { project_name, project_leader, members } = req.body;
     try {
@@ -412,6 +413,44 @@ app.post('/api/updateTask', validateToken, async (req, res) => {
     } catch (err) {
         console.error('Error updating task:', err);
         res.sendStatus(500);
+    }
+});
+
+// Endpoint to get members of a specific project
+app.post('/api/projectMembers', validateToken, async (req, res) => {
+    const { project_id } = req.body;
+
+    try {
+        // Get the members associated with the project
+        const query = `
+            SELECT members
+            FROM Projects
+            WHERE project_id = $1
+        `;
+        const values = [project_id];
+        const result = await pool.query(query, values);
+
+        if (result.rows.length === 0) {
+            return res.status(404).json({ message: 'Project not found' });
+        }
+
+        const members = result.rows[0].members;
+        if (members && members.length > 0) {
+            // Fetch user details of the members
+            const usernames = members.map(member => member); // Assuming members is an array of usernames
+            const usersQuery = `
+                SELECT username, full_name
+                FROM Users
+                WHERE username = ANY($1)
+            `;
+            const usersResult = await pool.query(usersQuery, [usernames]);
+            res.json(usersResult.rows);
+        } else {
+            res.json([]); // Return an empty array if no members
+        }
+    } catch (err) {
+        console.error('Error fetching project members:', err);
+        res.status(500).json({ message: 'Internal server error' });
     }
 });
 
