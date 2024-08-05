@@ -465,46 +465,6 @@ app.post('/api/deleteTask', validateToken, async (req, res) => {
         res.sendStatus(500);
     }
 });
-// Example Node.js/Express endpoint
-app.post('/api/fetchUserProjects', async (req, res) => {
-    const { username } = req.body;
-
-    try {
-        const query = `
-            SELECT p.project_id, p.project_name
-            FROM Projects p
-            WHERE p.project_leader = $1
-               OR $1 = ANY(p.members::text[])
-        `;
-
-        const { rows } = await db.query(query, [username]);
-
-        res.json(rows);
-    } catch (error) {
-        console.error('Error fetching user projects:', error);
-        res.status(500).json({ error: 'Internal Server Error' });
-    }
-});
-
-// Endpoint for fetching project details
-app.post('/api/fetchProjectDetails', async (req, res) => {
-    const { project_id } = req.body;
-
-    try {
-        const query = `
-            SELECT p.project_name, p.project_leader, p.members
-            FROM Projects p
-            WHERE p.project_id = $1
-        `;
-
-        const { rows } = await db.query(query, [project_id]);
-
-        res.json(rows[0]);
-    } catch (error) {
-        console.error('Error fetching project details:', error);
-        res.status(500).json({ error: 'Internal Server Error' });
-    }
-});
 
 app.listen(PORT, () => {
     console.log(`Server is running on port ${PORT}`);
